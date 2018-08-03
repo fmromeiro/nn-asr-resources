@@ -1,0 +1,27 @@
+Newsgroups: comp.speech
+Subject: BEEP version 1.0 released
+--text follows this line--
+BEEP (British English Example Pronunciations) version 1.0 has now been
+released.
+
+There are two main changes from the last version (0.7 of 7 Aug 1996):
+
+  1) The primary and secondary stress markings have been removed (they
+     were both incomplete and inconsistent).
+
+  2) I've added a file "case.txt" which lists the probable mixture of
+     upper and lower case letters for the most common words in the main
+     dictionary.  The words in the main dictionary remain in upper case
+     for reasons of coverage and backwards compatibility.
+
+It is available by FTP from:
+
+  ftp://svr-ftp.eng.cam.ac.uk/pub/comp.speech/dictionaries/beep.tar.gz 
+
+
+Tony Robinson
+
+-- 
+Dr AJ Robinson  Tel +44 1223 332815  Fax +44 1223 332662
+mailto:ajr4@cam.ac.uk  http://svr-www.eng.cam.ac.uk/~ajr
+Cambridge University Engineering Department,Cambridge,UK

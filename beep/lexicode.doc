@@ -1,0 +1,47 @@
+This file documents the code used to represent the word forms in the lexicon
+
+The valid characters in this field are:
+
+Characters	Notes						Example
+[A-Z]	All words are presently in upper case			AARDVARK
+.	Abbreviations are represented with a trailing '.'	A.
+-	Hypenated words are seaprated by '-'			A-BOMB
+_	Separator for multiple words with one lexical entry	A_PRIORI
+'								ACCOUNTANTS'
+\'								CAF\'E
+\`								CR\`ECHE
+\^								AR\^ETE
+								
+
+Also there are these one-off words:
+
+!EXCLAMATION-POINT
+"DOUBLE-QUOTE
+%PERCENT
+&AMPERSAND
+&EM
+...
+&UN
+
+'EM
+...
+'UN
+(LEFT-PAREN
+)RIGHT-PAREN
++PLUS
+,COMMA
+--DASH
+-HYPHEN
+-SHIRE
+...ELLIPSIS
+.PERIOD
+.POINT
+/SLASH
+:COLON
+;SEMI-COLON
+;SEMI-COLON
+;SEMICOLON
+?QUESTION-MARK
+...
+{LEFT-BRACE
+}RIGHT-BRACE

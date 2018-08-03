@@ -1,0 +1,22 @@
+#!/bin/sh
+
+if [ $# -gt 1 ] ; then
+	echo syntax: addparan [pronunciations without counts]
+	exit 1
+fi
+
+awk 'BEGIN{last = "" ; count = 1} {
+	if($1 == last) count++;
+	else count = 1;
+
+	if(count == 1) print $0;
+	else {
+		newwrd=$1 "(" count ")"
+		printf("%-23s ", newwrd);
+		for(i = 2; i < NF; i++) printf("%s ", $i);
+		printf("%s\n", $NF);
+	}
+	last = $1
+}' $1 | expand | unexpand -a
+
+exit 0

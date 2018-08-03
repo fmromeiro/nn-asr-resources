@@ -1,0 +1,130 @@
+'sayTimit' is a util. to check/develop transcription dictionaries in the "beep"
+notation, using 'say' from rsynth to produce audial checking of the transcrip-
+tion. To save time, 'say' is invoked as the destination of a UNIX pipe, and 
+info is fed to it under certain commands. No attempt is made to make use of 
+the stress markers (this is due to rsynth, not the utility...).
+
+Commands are given to say the current transcription, say arbitrary text, look
+up the current word in a dictionary &c.
+
+--------------------------------------------------------------------------------
+instructions.
+--------------------------------------------------------------------------------
+
+
+Basic instructions
+------------------
+
+usage> sayTimit <dict file> [<start place>]
+
+dict file is assumed in a format like:
+
+LACKLUSTER       l ae1 k l ah2 s t ax axr	# comment.
+LAKEFIELD        l ey1 k f iy2 l d
+
+ie, the word; the timit transcription, and an optional comment. 
+
+"start place" is a word which should be in the file; this just allows you
+to start work in the middle of a file, if something went wrong on a previous
+run &c &c. 
+
+Before running - you need to determine how 'say' (from rsynth) is to be run.
+Just change line that looks like:
+
+> open(SAY, "| <say-command>");                   # crank up 'say'.
+
+eg, "say +h -g 0.2" set the gain (volume) to 20%, and sends the sound to the 
+headphone port. Additionally, the port and gain are controllable on SUNs with 
+the 'gaintool' program which is part of the SunOS SOUND demonstration package
+(have a look in /usr/demo/SOUND on your machine). 
+
+
+Using it.
+--------
+
+eg on the line for 
+LACKLUSTER       l ae1 k l ah2 s t ax axr       # comment.
+
+the following is shown: the current line and the translation into ota phonemes.
+
+>> LACKLUSTER       l ae1 k l ah2 s t ax axr
+== l'&kl,Vst@R
+
+The control is a loop which only exits on 'n'.
+
+* hitting return will 'say' the transcription (in ota format)
+* hitting n <+cr> goes to the next line in the dict.
+* s <text> sends the text verbatim to 'say' - eg you might want to listen to 
+  	a similar word:  			s duster
+	or try a different transcription: 	s [lVst3]
+
+* t <text> makes the current line 'text' - eg can edit the dict file in a 
+	separate window, and paste in a version to try. 
+
+* p retrieves the previous version of the current line (ie, before you used 't')
+ 
+
+'sayTimit' is a util. to check/develop transcription dictionaries in the "beep"
+notation, using 'say' from rsynth to produce audial checking of the transcrip-
+tion. To save time, 'say' is invoked as the destination of a UNIX pipe, and 
+info is fed to it under certain commands. No attempt is made to make use of 
+the stress markers (this is due to rsynth, not the utility...).
+
+Commands are given to say the current transcription, say arbitrary text, look
+up the current word in a dictionary &c.
+
+--------------------------------------------------------------------------------
+instructions.
+--------------------------------------------------------------------------------
+
+
+Basic instructions
+------------------
+
+usage> sayTimit <dict file> [<start place>]
+
+dict file is assumed in a format like:
+
+LACKLUSTER       l ae1 k l ah2 s t ax axr	# comment.
+LAKEFIELD        l ey1 k f iy2 l d
+
+ie, the word; the timit transcription, and an optional comment. 
+
+"start place" is a word which should be in the file; this just allows you
+to start work in the middle of a file, if something went wrong on a previous
+run &c &c. 
+
+Before running - you need to determine how 'say' (from rsynth) is to be run.
+Just change line that looks like:
+
+> open(SAY, "| <say-command>");                   # crank up 'say'.
+
+eg, "say +h -g 0.2" set the gain (volume) to 20%, and sends the sound to the 
+headphone port. Additionally, the port and gain are controllable on SUNs with 
+the 'gaintool' program which is part of the SunOS SOUND demonstration package
+(have a look in /usr/demo/SOUND on your machine). 
+
+
+Using it.
+--------
+
+eg on the line for 
+LACKLUSTER       l ae1 k l ah2 s t ax axr       # comment.
+
+the following is shown: the current line and the translation into ota phonemes.
+
+>> LACKLUSTER       l ae1 k l ah2 s t ax axr
+== l'&kl,Vst@R
+
+The control is a loop which only exits on 'n'.
+
+* hitting return will 'say' the transcription (in ota format)
+* hitting n <+cr> goes to the next line in the dict.
+* s <text> sends the text verbatim to 'say' - eg you might want to listen to 
+  	a similar word:  			s duster
+	or try a different transcription: 	s [lVst3]
+
+* t <text> makes the current line 'text' - eg can edit the dict file in a 
+	separate window, and paste in a version to try. 
+
+* p retrieves the previous version of the current line (ie, before you used 't')
