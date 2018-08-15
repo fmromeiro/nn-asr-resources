@@ -12,6 +12,7 @@ import numpy
 import scipy.io.wavfile
 from scipy.fftpack import dct
 from python_speech_features import mfcc
+from sklearn.preprocessing import MinMaxScaler
 
 
 # constants
@@ -62,17 +63,28 @@ class AudioPrep:
         self.__author_indexes = [key for key in self.__files.keys()]
 
     def __get_mfcc (self, audios):
-        # Clearly based on the methods described at: https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html
-
-        mfcc_result = dict()
+        keys = list()
+        mfccs = list()
 
         for key, value in audios.items():
             audio = value[0]
             samplerate = value[1]
             audio_mfcc = mfcc(audio, samplerate)
-            mfcc_result[key] = audio_mfcc
+            keys.append(key)
+            mfccs.append(audio_mfcc)
 
-        return mfcc_result
+        return (keys, mfccs)
+
+    def __scale_data (self, keys, mfccs):
+        min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+        audios = min_max_scaler.fit_transform(mfccs)
+
+        scaled_mfcc = dict()
+
+        for i in range(len(keys)):
+            scaled_mfcc[keys[i]] = audios[i]
+        
+        return scaled_mfcc
 
     def __convert_audios(self, path):
         if self.__origin_format is None:
@@ -112,10 +124,11 @@ class AudioPrep:
                 audios[audio_part.split('.')[0]] = (data, samplerate)
         
         print (curr_path)
-        mfcc = self.__get_mfcc(audios)
+        keys, mfcc = self.__get_mfcc(audios)
+        scaled_mfcc = self.__scale_data(keys, mfcc)
         result = dict()
         for key, transcript in transcripts.items():
-            result[key] = (transcript, mfcc[key])
+            result[key] = (transcript, scaled_mfcc[key])
         return result    
 
     def convert_audios(self, origin_format = None, target_format = None):
