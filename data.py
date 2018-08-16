@@ -12,7 +12,7 @@ import numpy
 import scipy.io.wavfile
 from scipy.fftpack import dct
 from python_speech_features import mfcc
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import minmax_scale
 
 
 # constants
@@ -76,13 +76,21 @@ class AudioPrep:
         return (keys, mfccs)
 
     def __scale_data (self, keys, mfccs):
-        min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
-        audios = min_max_scaler.fit_transform(mfccs)
+        #print(mfccs)
+        #audios = [minmax_scale(mfcc, feature_range=(-1,1), axis = 1) for mfcc in mfccs]
+        audios = list()
+        for mfcc in mfccs:
+            scaled_audio = minmax_scale(mfcc, feature_range=(-1,1), axis = 1)
+            #print(mfcc)
+            #print(scaled_audio)
+            audios.append(scaled_audio)
 
         scaled_mfcc = dict()
 
         for i in range(len(keys)):
             scaled_mfcc[keys[i]] = audios[i]
+        
+        print (scaled_mfcc)
         
         return scaled_mfcc
 
