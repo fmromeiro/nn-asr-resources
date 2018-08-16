@@ -13,6 +13,7 @@ import scipy.io.wavfile
 from scipy.fftpack import dct
 from python_speech_features import mfcc
 from sklearn.preprocessing import minmax_scale
+import beep
 
 
 # constants
@@ -39,6 +40,7 @@ class AudioPrep:
         self.__cep_lifter = cep_lifter if cep_lifter is not None else CEP_LIFTER
         self.__origin_format = None
         self.__target_format = None
+        self.__phon_dict = beep.get_phoneme_dict()
         self.__get_files()
         
     def __get_files(self):
@@ -47,18 +49,15 @@ class AudioPrep:
         for author in author_folders:
             self.__files[author] = dict()
             author_path = join(self.__path, author)
-            print ("1: ", author_path)
             audio_folders = [d for d in listdir(author_path) if isdir(join(author_path, d))]
             for audio in audio_folders:
                 self.__files[author][audio] = list()
                 curr_path = join(author_path, audio)
-                print ("2:", curr_path)
                 transcript_file = [file for file in listdir(curr_path) if file.endswith('.txt')][0]
                 transcript_lines = [line.rstrip('\n') for line in open(join(curr_path, transcript_file))]
                 for line in transcript_lines:
                     split = line.find(' ')
                     self.__files[author][audio].append(line[:split])
-                    #self.files.append(line[:split])
         self.__index = -1
         self.__author_indexes = [key for key in self.__files.keys()]
 
@@ -76,21 +75,14 @@ class AudioPrep:
         return (keys, mfccs)
 
     def __scale_data (self, keys, mfccs):
-        #print(mfccs)
-        #audios = [minmax_scale(mfcc, feature_range=(-1,1), axis = 1) for mfcc in mfccs]
         audios = list()
         for mfcc in mfccs:
             scaled_audio = minmax_scale(mfcc, feature_range=(-1,1), axis = 1)
-            #print(mfcc)
-            #print(scaled_audio)
             audios.append(scaled_audio)
 
         scaled_mfcc = dict()
-
         for i in range(len(keys)):
             scaled_mfcc[keys[i]] = audios[i]
-        
-        print (scaled_mfcc)
         
         return scaled_mfcc
 
@@ -100,10 +92,23 @@ class AudioPrep:
         if self.__target_format is None:
             self.__target_format = AUDIO_TARGET_FORMAT
         audio_parts = [d for d in listdir(path) if d.endswith('.' + self.__origin_format)]
-        for audio_part in audio_parts:                
-            print("3: ",join(path, audio_part))
+        for audio_part in audio_parts:           
             audio = AudioSegment.from_file(join(path, audio_part), self.__origin_format)
             audio.export(join(path, audio_part).split('.')[0] + '.' + self.__target_format, format = self.__target_format)
+
+    def __get_phoneme_transcription(self, transcriptions):
+        phoneme_transcripts = dict()
+        for key, transcript in transcriptions.items():
+            words = transcript.split()
+            phrase = ""
+            for word in words:
+                if word in self.__phon_dict.keys():
+                    phrase += self.__phon_dict[word] + " "
+                else:
+                    phrase += "?? "
+            phoneme_transcripts[key] = phrase[:-1]
+        return phoneme_transcripts
+
 
     def get_data(self, format = "wav"):
         self.__index += 1
@@ -131,11 +136,11 @@ class AudioPrep:
                 data, samplerate = sf.read(join(curr_path, audio_part))
                 audios[audio_part.split('.')[0]] = (data, samplerate)
         
-        print (curr_path)
         keys, mfcc = self.__get_mfcc(audios)
         scaled_mfcc = self.__scale_data(keys, mfcc)
         result = dict()
-        for key, transcript in transcripts.items():
+        phon_transcripts = self.__get_phoneme_transcription(transcripts)
+        for key, transcript in phon_transcripts.items():
             result[key] = (transcript, scaled_mfcc[key])
         return result    
 
