@@ -1,25 +1,18 @@
-# I'm just happy that everything here works as of 08/09/2018 11:14:28
-
-#TODONE: Create a class that feeds audio in batches, dividing by authors or by transcripts
-#TODONE: Switch the variables to private
-#TODONE: If there are no wav files to available, try to convert all non-txt files to wav (or use a find_audio_files method perhaps)
-
 from os import listdir
-from os.path import isdir, join
+import os.path as path
 from pydub import AudioSegment
 import soundfile as sf
 import numpy
 import scipy.io.wavfile
 from scipy.fftpack import dct
-from python_speech_features import mfcc
+import python_speech_features
 from sklearn.preprocessing import minmax_scale
 import beep
 
-
 # constants
 PRE_EMPHASIS = 0.97 # Value of the amplification filter applied to high frequencies of the audio
-FRAME_SIZE = 0.025 # Size of the audio window in ms
-FRAME_STRIDE = 0.01 # Step between audio windows in ms (notice that it's shorter than the frame_size, resulting in overlap)
+FRAME_SIZE = 0.025 # Size of the audio window in seconds
+FRAME_STRIDE = 0.01 # Step between audio windows in seconds (notice that it's shorter than the frame_size, resulting in overlap)
 nfft = 512 # Not sure what this is, but it stands for the N in N-point FFT
 NFILT = 40 # Number of triangular filters to be applied on FFT, creating a Mel-scale
 NUM_CEPS = 12 # Number of cepstral coefficients to retain after compression using Discrete Consine Transform (DCT)
@@ -27,9 +20,39 @@ CEP_LIFTER = 22
 AUDIO_ORIGIN_FORMAT = "flac"
 AUDIO_TARGET_FORMAT = "wav"
 
-class AudioPrep:
+class AudioPrep(object):
+    """Get audios, convert them into numpy arrays, do the MFCC transformation, translate the transcriptions into phonemes and make xy pairments."""
 
     def __init__(self, path, pre_emphasis = None, frame_size = None, frame_stride = None, NFFT = None, nfilt = None, num_ceps = None, cep_lifter = None):
+        """Class constructor
+
+        Initializes MFCC parameters, reads the phoneme dictionary and get the list of files.
+
+        Args:
+            path: The path in which the audio authors' folders are located. The folder format should be as follows:
+                |__84 [Author]
+                |  |__121123 [Chapter]
+                      |__{name}.txt [Transcriptions file]
+                      |__{name}.{flac, wav} [Audio files] [{name} must be in transcriptions file]
+                      |__[...]                      
+                      |__{name}.{flac, wav} [Audio files] [{name} must be in transcriptions file]
+                |  |__121550 [Chapter]
+                |__174 [Author]
+                |  |__50561 [Chapter]
+                |  |__84280 [Chapter]
+                |  |__168635 [Chapter]
+
+            pre_emphasis: Defaults to 0.97. Defines the value of the amplification filter applied to the high frequencies of the audio.
+            frame_size: Defaults to 0.025. Defines the window size in seconds.
+            frame_stride: Defaults to 0.01. Defines the step between adjacent windows.
+            NFFT: Not sure, leave it as it is.
+            nfilt: Defaults to 40. Number of triangular filters to be applied on FFT, obtaining the Mel Scale.
+            num_ceps: Defaults to 12. Number of cepstral coefficients to maintain after compression by DCT.
+            cep_lifter: Not sure either.
+        
+        Throws:
+            IndexError: The folder specified in path was not in the expected format
+        """
         self.__path = path
         self.__pre_emphasis = pre_emphasis if pre_emphasis is not None else PRE_EMPHASIS
         self.__frame_size = frame_size if frame_size is not None else FRAME_SIZE
@@ -44,40 +67,56 @@ class AudioPrep:
         self.__get_files()
         
     def __get_files(self):
+        """Prepares the folders' dict, so that we can return the audio in batches."""
         self.__files = dict()
-        author_folders = [d for d in listdir(self.__path) if isdir(join(self.__path, d))]
-        for author in author_folders:
-            self.__files[author] = dict()
-            author_path = join(self.__path, author)
-            audio_folders = [d for d in listdir(author_path) if isdir(join(author_path, d))]
-            for audio in audio_folders:
-                self.__files[author][audio] = list()
-                curr_path = join(author_path, audio)
-                transcript_file = [file for file in listdir(curr_path) if file.endswith('.txt')][0]
-                transcript_lines = [line.rstrip('\n') for line in open(join(curr_path, transcript_file))]
-                for line in transcript_lines:
-                    split = line.find(' ')
-                    self.__files[author][audio].append(line[:split])
-        self.__index = -1
-        self.__author_indexes = [key for key in self.__files.keys()]
+
+        # listdir returns a list of all the items in a folder.
+        # So, we need to use path.isdir to check whether a certain item is a folder or not.
+        author_folders = [d for d in listdir(self.__path) if path.isdir(path.join(self.__path, d))]
+        for author in author_folders:  # First, we go through the authors folders
+            self.__files[author] = list()  # Inside the authors' dict, we have the chapters' dict
+            author_path = path.join(self.__path, author)
+            audio_folders = [d for d in listdir(author_path) if path.isdir(path.join(author_path, d))]
+            for audio in audio_folders:  # Then, inside the authors folder we have the chapters folder
+                self.__files[author].append(audio)
+
+        self.__index = -1  # Start the authors' index before the first
+        self.__author_indexes = [key for key in self.__files.keys()]  # Allows us to index the batches by number of the author
 
     def __get_mfcc (self, audios):
+        """Do the Mel Scale transform on the audios.
+        
+        Args:
+            audios: a dict provided by get_data() that maps the keys to tuple (numpy_arrays audio, samplerate).
+
+        Returns:
+            A tuple containing a list of the keys and a list of the audios after the MFCC transform.
+        """
         keys = list()
         mfccs = list()
 
         for key, value in audios.items():
             audio = value[0]
             samplerate = value[1]
-            audio_mfcc = mfcc(audio, samplerate)
+            audio_mfcc = python_speech_features.mfcc(audio, samplerate)
             keys.append(key)
             mfccs.append(audio_mfcc)
 
         return (keys, mfccs)
 
     def __scale_data (self, keys, mfccs):
+        """Scale the MFCC coefficients into a range of (-1, 1), making it easier for the neural networks to interpret the data
+        
+        Args:
+            keys: a list that provides the keys to be used in the dict.
+            mfccs: a list that provides the mfcc transformed audios, aligned to the keys list.
+
+        Returns:
+            A dict pairing the keys to the scaled audios.
+        """
         audios = list()
         for mfcc in mfccs:
-            scaled_audio = minmax_scale(mfcc, feature_range=(-1,1), axis = 1)
+            scaled_audio = minmax_scale(mfcc, feature_range=(-1,1), axis = 1)  # the axis parameter indicates that the audio will be scaled in each window, instead of each feature
             audios.append(scaled_audio)
 
         scaled_mfcc = dict()
@@ -87,16 +126,29 @@ class AudioPrep:
         return scaled_mfcc
 
     def __convert_audios(self, path):
+        """Convert all the audios in path from self.__origin_format to self.__target_format.
+
+        Args:
+            path: The path in which are the files to be converted
+        """
         if self.__origin_format is None:
             self.__origin_format = AUDIO_ORIGIN_FORMAT
         if self.__target_format is None:
             self.__target_format = AUDIO_TARGET_FORMAT
-        audio_parts = [d for d in listdir(path) if d.endswith('.' + self.__origin_format)]
+        audio_parts = [d for d in listdir(path) if d.endswith('.' + self.__origin_format)]  # Get all the files that are in origin_format
         for audio_part in audio_parts:           
-            audio = AudioSegment.from_file(join(path, audio_part), self.__origin_format)
-            audio.export(join(path, audio_part).split('.')[0] + '.' + self.__target_format, format = self.__target_format)
+            audio = AudioSegment.from_file(path.join(path, audio_part), self.__origin_format)  # Create a object that represents the audio file
+            audio.export(path.join(path, audio_part).split('.')[0] + '.' + self.__target_format, format = self.__target_format)  # Use the object to convert the audio
 
     def __get_phoneme_transcription(self, transcriptions):
+        """Convert the transcripts into its respective phonemes.
+        
+        Args:
+            transcriptions: a dict containing the audio transcripts
+
+        Returns:
+            A dict containing the key of the audio and its respective phoneme representation. Unknown words are replaced by '??'.
+        """
         phoneme_transcripts = dict()
         for key, transcript in transcriptions.items():
             words = transcript.split()
@@ -111,29 +163,39 @@ class AudioPrep:
 
 
     def get_data(self, format = "wav"):
+        """Gets the audios, do the transforms, get the phonetic transcriptions and pair it all up
+        
+        Args:
+            format: the format of the audio to be read.
+
+        Returns:
+            A dict pairing the keys to tuples that contain (phonetic transcriptions, scaled mfcc converted audios)
+        """
         self.__index += 1
 
         author = self.__author_indexes[self.__index]
-        author_path = join(self.__path, author)
+        author_path = path.join(self.__path, author)
         transcripts = dict()
         audios = dict()
         for audio in self.__files[author]:
-            curr_path = join(author_path, audio)            
+            curr_path = path.join(author_path, audio)            
 
+            # Gets the transcripts
             transcript_file = [file for file in listdir(curr_path) if file.endswith('.txt')][0]
-            transcript_lines = [line.rstrip('\n') for line in open(join(curr_path, transcript_file))]
+            transcript_lines = [line.rstrip('\n') for line in open(path.join(curr_path, transcript_file))]
             for line in transcript_lines:
                 split = line.find(' ')
                 transcripts[line[:split]] = line[split:]
 
+            # Gets the audios and convert them
             audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
             if not audio_parts:
                 if self.__target_format is None:
                     self.__target_format = format
                 self.__convert_audios(curr_path)            
-            audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
+                audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
             for audio_part in audio_parts:                
-                data, samplerate = sf.read(join(curr_path, audio_part))
+                data, samplerate = sf.read(path.join(curr_path, audio_part))
                 audios[audio_part.split('.')[0]] = (data, samplerate)
         
         keys, mfcc = self.__get_mfcc(audios)
@@ -145,5 +207,11 @@ class AudioPrep:
         return result    
 
     def convert_audios(self, origin_format = None, target_format = None):
+        """Sets the formats to convert the audios from and to.
+        
+        Args:
+            origin_format: The format in which the audio is.
+            target_format: The format to which the audio will be converted.
+        """
         self.__origin_format = origin_format if origin_format is not None else AUDIO_ORIGIN_FORMAT
         self.__target_format = target_format if target_format is not None else AUDIO_TARGET_FORMAT
