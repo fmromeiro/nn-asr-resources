@@ -1,2 +1,7 @@
-# tdnn-asr
-Attempt at creating a Time Delay Neural Network for Automated Speech Recognition
+# nn-asr-resources
+Resources repo for ASR neural network training
+
+## Setup
+Create a virtualenv at ENV using Python x64
+
+```pip install -r requirements.txt```
