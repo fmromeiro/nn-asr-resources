@@ -1,5 +1,5 @@
 from os import listdir
-import os.path as path
+import os
 from pydub import AudioSegment
 import soundfile as sf
 import numpy
@@ -71,12 +71,12 @@ class AudioPrep(object):
         self.__files = dict()
 
         # listdir returns a list of all the items in a folder.
-        # So, we need to use path.isdir to check whether a certain item is a folder or not.
-        author_folders = [d for d in listdir(self.__path) if path.isdir(path.join(self.__path, d))]
+        # So, we need to use os.path.isdir to check whether a certain item is a folder or not.
+        author_folders = [d for d in listdir(self.__path) if os.path.isdir(os.path.join(self.__path, d))]
         for author in author_folders:  # First, we go through the authors folders
             self.__files[author] = list()  # Inside the authors' dict, we have the chapters' dict
-            author_path = path.join(self.__path, author)
-            audio_folders = [d for d in listdir(author_path) if path.isdir(path.join(author_path, d))]
+            author_path = os.path.join(self.__path, author)
+            audio_folders = [d for d in listdir(author_path) if os.path.isdir(os.path.join(author_path, d))]
             for audio in audio_folders:  # Then, inside the authors folder we have the chapters folder
                 self.__files[author].append(audio)
 
@@ -137,8 +137,8 @@ class AudioPrep(object):
             self.__target_format = AUDIO_TARGET_FORMAT
         audio_parts = [d for d in listdir(path) if d.endswith('.' + self.__origin_format)]  # Get all the files that are in origin_format
         for audio_part in audio_parts:           
-            audio = AudioSegment.from_file(path.join(path, audio_part), self.__origin_format)  # Create a object that represents the audio file
-            audio.export(path.join(path, audio_part).split('.')[0] + '.' + self.__target_format, format = self.__target_format)  # Use the object to convert the audio
+            audio = AudioSegment.from_file(os.path.join(path, audio_part), self.__origin_format)  # Create a object that represents the audio file
+            audio.export(os.path.join(path, audio_part).split('.')[0] + '.' + self.__target_format, format = self.__target_format)  # Use the object to convert the audio
 
     def __get_phoneme_transcription(self, transcriptions):
         """Convert the transcripts into its respective phonemes.
@@ -174,15 +174,15 @@ class AudioPrep(object):
         self.__index += 1
 
         author = self.__author_indexes[self.__index]
-        author_path = path.join(self.__path, author)
+        author_path = os.path.join(self.__path, author)
         transcripts = dict()
         audios = dict()
         for audio in self.__files[author]:
-            curr_path = path.join(author_path, audio)            
+            curr_path = os.path.join(author_path, audio)            
 
             # Gets the transcripts
             transcript_file = [file for file in listdir(curr_path) if file.endswith('.txt')][0]
-            transcript_lines = [line.rstrip('\n') for line in open(path.join(curr_path, transcript_file))]
+            transcript_lines = [line.rstrip('\n') for line in open(os.path.join(curr_path, transcript_file))]
             for line in transcript_lines:
                 split = line.find(' ')
                 transcripts[line[:split]] = line[split:]
@@ -195,7 +195,7 @@ class AudioPrep(object):
                 self.__convert_audios(curr_path)            
                 audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
             for audio_part in audio_parts:                
-                data, samplerate = sf.read(path.join(curr_path, audio_part))
+                data, samplerate = sf.read(os.path.join(curr_path, audio_part))
                 audios[audio_part.split('.')[0]] = (data, samplerate)
         
         keys, mfcc = self.__get_mfcc(audios)
