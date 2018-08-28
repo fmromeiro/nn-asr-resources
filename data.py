@@ -65,6 +65,7 @@ class AudioPrep(object):
         self.__target_format = None
         self.__phon_dict = beep.get_phoneme_dict()
         self.__get_files()
+        self.__batch_count = len(self.__files)
         
     def __get_files(self):
         """Prepares the folders' dict, so that we can return the audio in batches."""
@@ -204,6 +205,10 @@ class AudioPrep(object):
         phon_transcripts = self.__get_phoneme_transcription(transcripts)
         for key, transcript in phon_transcripts.items():
             result[key] = (transcript, scaled_mfcc[key])
+            
+        if self.__index >= self.__batch_count - 1:
+            self.__index = -1
+
         return result    
 
     def convert_audios(self, origin_format = None, target_format = None):
@@ -215,3 +220,7 @@ class AudioPrep(object):
         """
         self.__origin_format = origin_format if origin_format is not None else AUDIO_ORIGIN_FORMAT
         self.__target_format = target_format if target_format is not None else AUDIO_TARGET_FORMAT
+
+    @property
+    def batch_count(self):
+        return self.__batch_count
