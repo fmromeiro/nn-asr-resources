@@ -62,7 +62,8 @@ class Trainer:
                 batch = audio_interface.get_data()
                 X = self.__get_input_tensor(batch)
                 if sliding_windows:
-                    X = [X[i:i + window_size] for i in range(len(X) - window_size + 1)]
+                    for i in range(len(X)):
+                        X[i] = [X[i][j:j+window_size] for j in range(len(X[i]) - window_size + 1)]
                 y = [value[0] for value in batch.values()]
 
                 self.__model.fit(X, y, batch_size = X.shape[0], shuffle=False, verbose=0)
