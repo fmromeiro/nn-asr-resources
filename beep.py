@@ -1,4 +1,8 @@
-def get_phoneme_dict(path = "beep/beep-1.0"):
+import os
+__package_directory = os.path.dirname(os.path.abspath(__file__))
+__default_path = os.path.join(__package_directory, "beep/beep-1.0")
+
+def get_phoneme_dict(path = __default_path):
     """ Makes a word to phoneme dict
 
         Returns:
