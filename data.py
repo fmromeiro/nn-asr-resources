@@ -174,10 +174,10 @@ class AudioPrep(object):
         phoneme_indexes = beep.get_phoneme_indexes()
         for key, transcript in transcriptions.items():
             words = transcript.split()
-            phrase = ""
+            phrase = []
             for word in words:
                 if word in self.__phon_dict.keys():
-                    phrase += self.__phon_dict[word] + " "
+                    phrase += self.__phon_dict[word]
                 else:
                     phrase += phoneme_indexes
             phoneme_transcripts[key] = phrase[:-1]
