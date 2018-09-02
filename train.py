@@ -1,5 +1,5 @@
 import tensorflow as tf
-import tf.keras as keras
+import tensorflow.keras as keras
 from data import AudioPrep
 import numpy as np
 

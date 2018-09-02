@@ -4,7 +4,7 @@ import numpy as np
 from tensorflow.keras.preprocessing import sequence
 
 def main():
-    prep = data.AudioPrep("C:\\Users\\u16187\\Desktop\\TCC\\OpenSLR\\dev-clean\\LibriSpeech\\dev-clean")
+    prep = data.AudioPrep("/home/lucas/Desktop/TCC/librispeech/LibriSpeech/dev-clean")
     batch = prep.get_data()
     
     audios = [value[1] for value in batch.values()]
