@@ -44,12 +44,14 @@ class Trainer:
         padded_audios = np.array(padded_audios)
         return padded_audios
 
-    def train(self, epochs, optimizer=DEFAULT_OPTIMIZER):
+    def train(self, epochs, optimizer=DEFAULT_OPTIMIZER, sliding_windows=False, window_size=20):
         """Trains the model.
 
         Args:
             epochs: the number of epochs of training.
             optimizer: Defaults to SGD. the optimizer to be used during training.
+            sliding_windows: Defaults to False. determines whether or not to slice the batch into windows.
+            window_size: Defaults to 20. the size of the window to be used if sliding_windows is set to True
         """
         self.__model.compile(loss=ctc_loss, optimizer=optimizer, metrics=['acc'])
         
@@ -59,6 +61,8 @@ class Trainer:
             for _ in range(audio_interface.batch_count):
                 batch = audio_interface.get_data()
                 X = self.__get_input_tensor(batch)
+                if sliding_windows:
+                    X = [X[i:i + window_size] for i in range(len(X) - window_size)]
                 y = [value[0] for value in batch.values()]
 
                 self.__model.fit(X, y, batch_size = X.shape[0], shuffle=False, verbose=0)
