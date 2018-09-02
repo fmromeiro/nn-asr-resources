@@ -23,7 +23,7 @@ AUDIO_TARGET_FORMAT = "wav"
 class AudioPrep(object):
     """Get audios, convert them into numpy arrays, do the MFCC transformation, translate the transcriptions into phonemes and make xy pairments."""
 
-    def __init__(self, path, pre_emphasis = None, frame_size = None, frame_stride = None, NFFT = None, nfilt = None, num_ceps = None, cep_lifter = None):
+    def __init__(self, path, pre_emphasis = None, frame_size = None, frame_stride = None, NFFT = None, nfilt = None, num_ceps = None, cep_lifter = None, dict_path = None, phonemes_path = None):
         """Class constructor
 
         Initializes MFCC parameters, reads the phoneme dictionary and get the list of files.
@@ -49,6 +49,8 @@ class AudioPrep(object):
             nfilt: Defaults to 40. Number of triangular filters to be applied on FFT, obtaining the Mel Scale.
             num_ceps: Defaults to 12. Number of cepstral coefficients to maintain after compression by DCT.
             cep_lifter: Not sure either.
+            dict_path: Optional. Indicates the path in which the phonetic dictionary is located.
+            phonemes_path: Optional, recommended to be set alongside dict_path. Indicates the path in which the phonemes are indicated
         
         Throws:
             IndexError: The folder specified in path was not in the expected format
@@ -63,7 +65,19 @@ class AudioPrep(object):
         self.__cep_lifter = cep_lifter if cep_lifter is not None else CEP_LIFTER
         self.__origin_format = None
         self.__target_format = None
-        self.__phon_dict = beep.get_phoneme_dict()
+        self.__dict_path = dict_path
+        self.__phonemes_path = phonemes_path
+
+        if dict_path == None:
+            if phonemes_path == None:
+                self.__phon_dict = beep.get_phoneme_dict()
+            else:
+                self.__phon_dict = beep.get_phoneme_dict(phonemes_index=phonemes_path)
+        elif phonemes_path is not None:
+            self.__phon_dict = beep.get_phoneme_dict(path = dict_path, phonemes_index = phonemes_path)
+        else:
+            self.__phon_dict = beep.get_phoneme_dict(path = dict_path)
+            
         self.__get_files()
         self.__batch_count = len(self.__files)
         
@@ -148,9 +162,16 @@ class AudioPrep(object):
             transcriptions: a dict containing the audio transcripts
 
         Returns:
-            A dict containing the key of the audio and its respective phoneme representation. Unknown words are replaced by '??'.
+            A dict containing the key of the audio and its respective phoneme representation. Unknown words are replaced by the silence symbol
         """
         phoneme_transcripts = dict()
+        phoneme_indexes = dict()
+        if self.__phonemes_path != None:
+            phoneme_indexes = beep.get_phoneme_indexes(self.__phonemes_path)
+        else:
+            phoneme_indexes = beep.get_phoneme_indexes()
+        
+        phoneme_indexes = beep.get_phoneme_indexes()
         for key, transcript in transcriptions.items():
             words = transcript.split()
             phrase = ""
@@ -158,7 +179,7 @@ class AudioPrep(object):
                 if word in self.__phon_dict.keys():
                     phrase += self.__phon_dict[word] + " "
                 else:
-                    phrase += "?? "
+                    phrase += phoneme_indexes
             phoneme_transcripts[key] = phrase[:-1]
         return phoneme_transcripts
 
@@ -224,3 +245,9 @@ class AudioPrep(object):
     @property
     def batch_count(self):
         return self.__batch_count
+
+def translate_indexes(input, phonemes_path = None):
+    if phonemes_path != None:
+        return beep.decode_phonemes(input, phonemes_path)
+    else:
+        return beep.decode_phonemes(input)
