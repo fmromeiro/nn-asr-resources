@@ -64,6 +64,7 @@ class Trainer:
                 if sliding_windows:
                     for i in range(len(X)):
                         X[i] = [X[i][j:j+window_size] for j in range(len(X[i]) - window_size + 1)]
+                    np.reshape(X, X.shape + (1,))
                 y = [value[0] for value in batch.values()]
 
                 self.__model.fit(X, y, batch_size = X.shape[0], shuffle=False, verbose=0)
