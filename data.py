@@ -30,17 +30,17 @@ class AudioPrep(object):
 
         Args:
             path: The path in which the audio authors' folders are located. The folder format should be as follows:
-                |__84 [Author]
-                |  |__121123 [Chapter]
-                      |__{name}.txt [Transcriptions file]
-                      |__{name}.{flac, wav} [Audio files] [{name} must be in transcriptions file]
-                      |__[...]                      
-                      |__{name}.{flac, wav} [Audio files] [{name} must be in transcriptions file]
-                |  |__121550 [Chapter]
-                |__174 [Author]
-                |  |__50561 [Chapter]
-                |  |__84280 [Chapter]
-                |  |__168635 [Chapter]
+                |_84 [Author]
+                |  |_121123 [Chapter]
+                      |_{name}.txt [Transcriptions file]
+                      |_{name}.{flac, wav} [Audio files] [{name} must be in transcriptions file]
+                      |_[...]                      
+                      |_{name}.{flac, wav} [Audio files] [{name} must be in transcriptions file]
+                |  |_121550 [Chapter]
+                |_174 [Author]
+                |  |_50561 [Chapter]
+                |  |_84280 [Chapter]
+                |  |_168635 [Chapter]
 
             pre_emphasis: Defaults to 0.97. Defines the value of the amplification filter applied to the high frequencies of the audio.
             frame_size: Defaults to 0.025. Defines the window size in seconds.
@@ -55,50 +55,50 @@ class AudioPrep(object):
         Throws:
             IndexError: The folder specified in path was not in the expected format
         """
-        self.__path = path
-        self.__pre_emphasis = pre_emphasis if pre_emphasis is not None else PRE_EMPHASIS
-        self.__frame_size = frame_size if frame_size is not None else FRAME_SIZE
-        self.__frame_stride = frame_stride if frame_stride is not None else FRAME_STRIDE
-        self.__NFFT = NFFT if NFFT is not None else nfft
-        self.__nfilt = nfilt if nfilt is not None else NFILT 
-        self.__num_ceps = num_ceps if num_ceps is not None else NUM_CEPS
-        self.__cep_lifter = cep_lifter if cep_lifter is not None else CEP_LIFTER
-        self.__origin_format = None
-        self.__target_format = None
-        self.__dict_path = dict_path
-        self.__phonemes_path = phonemes_path
+        self._path = path
+        self._pre_emphasis = pre_emphasis if pre_emphasis is not None else PRE_EMPHASIS
+        self._frame_size = frame_size if frame_size is not None else FRAME_SIZE
+        self._frame_stride = frame_stride if frame_stride is not None else FRAME_STRIDE
+        self._NFFT = NFFT if NFFT is not None else nfft
+        self._nfilt = nfilt if nfilt is not None else NFILT 
+        self._num_ceps = num_ceps if num_ceps is not None else NUM_CEPS
+        self._cep_lifter = cep_lifter if cep_lifter is not None else CEP_LIFTER
+        self._origin_format = None
+        self._target_format = None
+        self._dict_path = dict_path
+        self._phonemes_path = phonemes_path
 
         if dict_path == None:
             if phonemes_path == None:
-                self.__phon_dict = beep.get_phoneme_dict()
+                self._phon_dict = beep.get_phoneme_dict()
             else:
-                self.__phon_dict = beep.get_phoneme_dict(phonemes_index=phonemes_path)
+                self._phon_dict = beep.get_phoneme_dict(phonemes_index=phonemes_path)
         elif phonemes_path is not None:
-            self.__phon_dict = beep.get_phoneme_dict(path = dict_path, phonemes_index = phonemes_path)
+            self._phon_dict = beep.get_phoneme_dict(path = dict_path, phonemes_index = phonemes_path)
         else:
-            self.__phon_dict = beep.get_phoneme_dict(path = dict_path)
+            self._phon_dict = beep.get_phoneme_dict(path = dict_path)
             
-        self.__get_files()
-        self.__batch_count = len(self.__files)
+        self._get_files()
+        self._batch_count = len(self._files)
         
-    def __get_files(self):
+    def _get_files(self):
         """Prepares the folders' dict, so that we can return the audio in batches."""
-        self.__files = dict()
+        self._files = dict()
 
         # listdir returns a list of all the items in a folder.
         # So, we need to use os.path.isdir to check whether a certain item is a folder or not.
-        author_folders = [d for d in listdir(self.__path) if os.path.isdir(os.path.join(self.__path, d))]
+        author_folders = [d for d in listdir(self._path) if os.path.isdir(os.path.join(self._path, d))]
         for author in author_folders:  # First, we go through the authors folders
-            self.__files[author] = list()  # Inside the authors' dict, we have the chapters' dict
-            author_path = os.path.join(self.__path, author)
+            self._files[author] = list()  # Inside the authors' dict, we have the chapters' dict
+            author_path = os.path.join(self._path, author)
             audio_folders = [d for d in listdir(author_path) if os.path.isdir(os.path.join(author_path, d))]
             for audio in audio_folders:  # Then, inside the authors folder we have the chapters folder
-                self.__files[author].append(audio)
+                self._files[author].append(audio)
 
-        self.__index = -1  # Start the authors' index before the first
-        self.__author_indexes = [key for key in self.__files.keys()]  # Allows us to index the batches by number of the author
+        self._index = -1  # Start the authors' index before the first
+        self._author_indexes = [key for key in self._files.keys()]  # Allows us to index the batches by number of the author
 
-    def __get_mfcc (self, audios):
+    def _get_mfcc (self, audios):
         """Do the Mel Scale transform on the audios.
         
         Args:
@@ -119,7 +119,7 @@ class AudioPrep(object):
 
         return (keys, mfccs)
 
-    def __scale_data (self, keys, mfccs):
+    def _scale_data (self, keys, mfccs):
         """Scale the MFCC coefficients into a range of (-1, 1), making it easier for the neural networks to interpret the data
         
         Args:
@@ -140,22 +140,22 @@ class AudioPrep(object):
         
         return scaled_mfcc
 
-    def __convert_audios(self, path):
-        """Convert all the audios in path from self.__origin_format to self.__target_format.
+    def _convert_audios(self, path):
+        """Convert all the audios in path from self._origin_format to self._target_format.
 
         Args:
             path: The path in which are the files to be converted
         """
-        if self.__origin_format is None:
-            self.__origin_format = AUDIO_ORIGIN_FORMAT
-        if self.__target_format is None:
-            self.__target_format = AUDIO_TARGET_FORMAT
-        audio_parts = [d for d in listdir(path) if d.endswith('.' + self.__origin_format)]  # Get all the files that are in origin_format
+        if self._origin_format is None:
+            self._origin_format = AUDIO_ORIGIN_FORMAT
+        if self._target_format is None:
+            self._target_format = AUDIO_TARGET_FORMAT
+        audio_parts = [d for d in listdir(path) if d.endswith('.' + self._origin_format)]  # Get all the files that are in origin_format
         for audio_part in audio_parts:           
-            audio = AudioSegment.from_file(os.path.join(path, audio_part), self.__origin_format)  # Create a object that represents the audio file
-            audio.export(os.path.join(path, audio_part).split('.')[0] + '.' + self.__target_format, format = self.__target_format)  # Use the object to convert the audio
+            audio = AudioSegment.from_file(os.path.join(path, audio_part), self._origin_format)  # Create a object that represents the audio file
+            audio.export(os.path.join(path, audio_part).split('.')[0] + '.' + self._target_format, format = self._target_format)  # Use the object to convert the audio
 
-    def __get_phoneme_transcription(self, transcriptions):
+    def _get_phoneme_transcription(self, transcriptions):
         """Convert the transcripts into its respective phonemes.
         
         Args:
@@ -165,22 +165,20 @@ class AudioPrep(object):
             A dict containing the key of the audio and its respective phoneme representation. Unknown words are replaced by the silence symbol
         """
         phoneme_transcripts = dict()
-        phoneme_indexes = dict()
-        if self.__phonemes_path != None:
-            phoneme_indexes = beep.get_phoneme_indexes(self.__phonemes_path)
-        else:
-            phoneme_indexes = beep.get_phoneme_indexes()
         
-        phoneme_indexes = beep.get_phoneme_indexes()
         for key, transcript in transcriptions.items():
             words = transcript.split()
             phrase = []
+            valid = True # makes sure phrases with unknown words are not mapped
             for word in words:
-                if word in self.__phon_dict.keys():
-                    phrase += self.__phon_dict[word]
+                if word in self._phon_dict.keys():
+                    phrase += self._phon_dict[word]
                 else:
-                    phrase += phoneme_indexes
-            phoneme_transcripts[key] = phrase[:-1]
+                    valid = False
+                    break
+
+            if valid:
+                phoneme_transcripts[key] = phrase[:-1]
         return phoneme_transcripts
 
 
@@ -193,13 +191,13 @@ class AudioPrep(object):
         Returns:
             A dict pairing the keys to tuples that contain (phonetic transcriptions, scaled mfcc converted audios)
         """
-        self.__index += 1
+        self._index += 1
 
-        author = self.__author_indexes[self.__index]
-        author_path = os.path.join(self.__path, author)
+        author = self._author_indexes[self._index]
+        author_path = os.path.join(self._path, author)
         transcripts = dict()
         audios = dict()
-        for audio in self.__files[author]:
+        for audio in self._files[author]:
             curr_path = os.path.join(author_path, audio)            
 
             # Gets the transcripts
@@ -212,23 +210,23 @@ class AudioPrep(object):
             # Gets the audios and convert them
             audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
             if not audio_parts:
-                if self.__target_format is None:
-                    self.__target_format = format
-                self.__convert_audios(curr_path)            
+                if self._target_format is None:
+                    self._target_format = format
+                self._convert_audios(curr_path)            
                 audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
             for audio_part in audio_parts:                
                 data, samplerate = sf.read(os.path.join(curr_path, audio_part))
                 audios[audio_part.split('.')[0]] = (data, samplerate)
         
-        keys, mfcc = self.__get_mfcc(audios)
-        scaled_mfcc = self.__scale_data(keys, mfcc)
+        keys, mfcc = self._get_mfcc(audios)
+        scaled_mfcc = self._scale_data(keys, mfcc)
         result = dict()
-        phon_transcripts = self.__get_phoneme_transcription(transcripts)
+        phon_transcripts = self._get_phoneme_transcription(transcripts)
         for key, transcript in phon_transcripts.items():
             result[key] = (transcript, scaled_mfcc[key])
             
-        if self.__index >= self.__batch_count - 1:
-            self.__index = -1
+        if self._index >= self._batch_count - 1:
+            self._index = -1
 
         return result    
 
@@ -239,12 +237,12 @@ class AudioPrep(object):
             origin_format: The format in which the audio is.
             target_format: The format to which the audio will be converted.
         """
-        self.__origin_format = origin_format if origin_format is not None else AUDIO_ORIGIN_FORMAT
-        self.__target_format = target_format if target_format is not None else AUDIO_TARGET_FORMAT
+        self._origin_format = origin_format if origin_format is not None else AUDIO_ORIGIN_FORMAT
+        self._target_format = target_format if target_format is not None else AUDIO_TARGET_FORMAT
 
     @property
     def batch_count(self):
-        return self.__batch_count
+        return self._batch_count
 
 def translate_indexes(input, phonemes_path = None):
     if phonemes_path != None:

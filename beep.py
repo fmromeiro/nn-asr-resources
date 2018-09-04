@@ -41,7 +41,7 @@ def get_phoneme_indexes(phonemes_index = __phonemes_path):
             phonemes_index: the path in which the phonemes are indicated    
     """
     phoneme_dict = dict()
-    i = 0
+    i = -1 # sil is not considered a phoneme
     with open(phonemes_index, "r", encoding = "utf-8") as f:
         for line in f:
             phoneme = line.split()[0]
