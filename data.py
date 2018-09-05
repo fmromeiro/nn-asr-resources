@@ -8,6 +8,7 @@ from scipy.fftpack import dct
 import python_speech_features
 from sklearn.preprocessing import minmax_scale
 import beep
+import numpy as np
 
 # constants
 PRE_EMPHASIS = 0.97 # Value of the amplification filter applied to high frequencies of the audio
@@ -63,8 +64,8 @@ class AudioPrep(object):
         self._nfilt = nfilt if nfilt is not None else NFILT 
         self._num_ceps = num_ceps if num_ceps is not None else NUM_CEPS
         self._cep_lifter = cep_lifter if cep_lifter is not None else CEP_LIFTER
-        self._origin_format = None
-        self._target_format = None
+        self._origin_format = AUDIO_ORIGIN_FORMAT
+        self._target_format = AUDIO_TARGET_FORMAT
         self._dict_path = dict_path
         self._phonemes_path = phonemes_path
 
@@ -102,7 +103,7 @@ class AudioPrep(object):
         """Do the Mel Scale transform on the audios.
         
         Args:
-            audios: a dict provided by get_data() that maps the keys to tuple (numpy_arrays audio, samplerate).
+            audios: a dict provided by _get_data() that maps the keys to tuple (numpy_arrays audio, samplerate).
 
         Returns:
             A tuple containing a list of the keys and a list of the audios after the MFCC transform.
@@ -181,8 +182,53 @@ class AudioPrep(object):
                 phoneme_transcripts[key] = phrase[:-1]
         return phoneme_transcripts
 
+    def _get_input_tensor(self, batch, mask):
+        """Returns a tuple of an 1D tensor containing the lengths of each sample in the batch and
+        and the input tensor of shape (batch_size, timesteps, feature_dims)
+        
+        Args:
+            batch: the batch object returned by AudioPrep._get_data()
+        """
+        audios = [value[1] for value in batch.values()]
+        max_size = max(audios, key=lambda a: a.shape[0]).shape[0]
+        features = audios[0].shape[1]
+        padded_audios = []
+        input_lengths = []
+        for audio in audios:
+            input_lengths.append(audio.shape[0])
+            result = np.full((max_size, features), mask)
+            result[:audio.shape[0], :features] = audio
+            padded_audios.append(result)
+        
+        padded_audios = np.array(padded_audios)
+        input_lengths = np.array(input_lengths)
+        return input_lengths, padded_audios
 
-    def get_data(self, format = "wav"):
+    def _get_output_tensor(self, batch, mask):
+        """Returns a tuple of an 1D tensor containing the lengths of each sample in the batch and
+        and the input tensor of shape (batch_size, timesteps, feature_dims)
+        
+        Args:
+            batch: the batch object returned by AudioPrep._get_data()
+        """
+        labels = [value[0] for value in batch.values()]
+        max_size = len(max(labels, key=lambda label: len(label)))
+
+        label_lengths = []
+        padded_labels = []
+        for label in labels:
+            label_lengths.append(len(label))
+            result = np.full((max_size), mask)
+            result[:len(label)] = label
+            padded_labels.append(result)
+
+        padded_labels = np.array(padded_labels)
+        label_lengths = np.array(label_lengths)
+
+        return label_lengths, padded_labels
+
+
+    def _get_data(self, format = "wav"):
         """Gets the audios, do the transforms, get the phonetic transcriptions and pair it all up
         
         Args:
@@ -208,12 +254,12 @@ class AudioPrep(object):
                 transcripts[line[:split]] = line[split:]
 
             # Gets the audios and convert them
-            audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
+            audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + self._origin_format)]
             if not audio_parts:
                 if self._target_format is None:
                     self._target_format = format
                 self._convert_audios(curr_path)            
-                audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + format)]
+                audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + self._origin_format)]
             for audio_part in audio_parts:                
                 data, samplerate = sf.read(os.path.join(curr_path, audio_part))
                 audios[audio_part.split('.')[0]] = (data, samplerate)
@@ -223,12 +269,27 @@ class AudioPrep(object):
         result = dict()
         phon_transcripts = self._get_phoneme_transcription(transcripts)
         for key, transcript in phon_transcripts.items():
-            result[key] = (transcript, scaled_mfcc[key])
+            if key in scaled_mfcc:
+                result[key] = (transcript, scaled_mfcc[key])
+            else:
+                print('LELE')
             
         if self._index >= self._batch_count - 1:
             self._index = -1
 
-        return result    
+        return result
+
+    def get_batch(self, input_mask=2, output_mask=0): 
+        batch = self._get_data()
+        input_lengths, X = self._get_input_tensor(batch, input_mask)
+        label_lengths, y = self._get_output_tensor(batch, output_mask)
+
+        return X, y, input_lengths, label_lengths
+
+    def batch_generator(self, input_mask=2, output_mask=0):
+        while True:
+            X, y, input_lengths, label_lengths = self.get_batch(input_mask, output_mask)
+            yield ([X, y, input_lengths, label_lengths], y)
 
     def convert_audios(self, origin_format = None, target_format = None):
         """Sets the formats to convert the audios from and to.

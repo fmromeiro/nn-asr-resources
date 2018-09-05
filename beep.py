@@ -3,6 +3,13 @@ __package_directory = os.path.dirname(os.path.abspath(__file__))
 __default_path = os.path.join(__package_directory, "beep/beep-1.0")
 __phonemes_path = os.path.join(__package_directory, "beep/phone45.tab")
 
+# global caching variables by path
+global __beeps
+__beeps = dict()
+
+global __phoneme_dicts
+__phoneme_dicts = dict()
+
 def get_phoneme_dict(path = __default_path, phonemes_index = __phonemes_path):
     """ Makes a word to phoneme dict
 
@@ -16,6 +23,10 @@ def get_phoneme_dict(path = __default_path, phonemes_index = __phonemes_path):
             path: Optional. Indicates which phonetic/pronunciation dictionary to use
             phonemes_index: Optional, but recommended if path is non-default. Indicates which are the phonemes in translation
     """
+    global __beeps
+    if path in __beeps.keys():
+        return __beeps[path]
+
     beep = dict()
     phoneme_indexes = get_phoneme_indexes(phonemes_index)
     with open(path,  "r", encoding = "utf-8") as f:
@@ -32,6 +43,7 @@ def get_phoneme_dict(path = __default_path, phonemes_index = __phonemes_path):
             for phon in phonemes:  # transform the list of phonemes into a string
                 phonemes_list.append(phon)
             beep[word] = phonemes_list
+    __beeps[path] = beep
     return beep
 
 def get_phoneme_indexes(phonemes_index = __phonemes_path):
@@ -40,6 +52,10 @@ def get_phoneme_indexes(phonemes_index = __phonemes_path):
         Args:
             phonemes_index: the path in which the phonemes are indicated    
     """
+    global __phoneme_dicts
+    if phonemes_index in __phoneme_dicts.keys():
+        return __phoneme_dicts[phonemes_index]
+
     phoneme_dict = dict()
     i = -1 # sil is not considered a phoneme
     with open(phonemes_index, "r", encoding = "utf-8") as f:
@@ -47,6 +63,7 @@ def get_phoneme_indexes(phonemes_index = __phonemes_path):
             phoneme = line.split()[0]
             phoneme_dict[phoneme] = i
             i += 1
+    __phoneme_dicts[phonemes_index] = phoneme_dict
     return phoneme_dict
 
 def decode_phonemes(indexes, phonemes_index = __phonemes_path):
