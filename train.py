@@ -18,6 +18,8 @@ def _ctc_loss(args):
 
 class Trainer:
     """ Abstraction of the training process for a Keras acoustic model for automated speech recognition"""
+    
+    """The default optimizer used in training"""
     DEFAULT_OPTIMIZER = keras.optimizers.SGD()
 
     def __init__(self, model, training_data_path, validation_data_path, masking_value = 2):
@@ -58,7 +60,7 @@ class Trainer:
 
         self._built = True
 
-    def train(self, epochs, optimizer=DEFAULT_OPTIMIZER):
+    def train(self, epochs, callbacks=None, optimizer=DEFAULT_OPTIMIZER):
         """Trains the model.
 
         Args:
@@ -77,4 +79,5 @@ class Trainer:
                                           validation_data=validation_set.batch_generator(),
                                           validation_steps=validation_set.batch_count,
                                           epochs=epochs,
-                                          shuffle=False)
+                                          shuffle=False,
+                                          callbacks=callbacks)
