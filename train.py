@@ -5,6 +5,7 @@ from data import AudioPrep
 import numpy as np
 
 NUM_PHONEMES = 44
+INPUT_FEATURES = 13
 
 def _dummy_loss(y_true, y_pred):
     """As the loss is being computed inside a Lambda layer of the model,
