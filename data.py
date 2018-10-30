@@ -24,7 +24,7 @@ AUDIO_TARGET_FORMAT = "wav"
 class AudioPrep(object):
     """Get audios, convert them into numpy arrays, do the MFCC transformation, translate the transcriptions into phonemes and make xy pairments."""
 
-    def __init__(self, path, pre_emphasis = None, frame_size = None, frame_stride = None, NFFT = None, nfilt = None, num_ceps = None, cep_lifter = None, dict_path = None, phonemes_path = None):
+    def __init__(self, path, batch_size=1, pre_emphasis = None, frame_size = None, frame_stride = None, NFFT = None, nfilt = None, num_ceps = None, cep_lifter = None, dict_path = None, phonemes_path = None):
         """Class constructor
 
         Initializes MFCC parameters, reads the phoneme dictionary and get the list of files.
@@ -43,6 +43,7 @@ class AudioPrep(object):
                 |  |_84280 [Chapter]
                 |  |_168635 [Chapter]
 
+            batch_size: Defaults to 1. The size for each data batch.
             pre_emphasis: Defaults to 0.97. Defines the value of the amplification filter applied to the high frequencies of the audio.
             frame_size: Defaults to 0.025. Defines the window size in seconds.
             frame_stride: Defaults to 0.01. Defines the step between adjacent windows.
@@ -57,6 +58,7 @@ class AudioPrep(object):
             IndexError: The folder specified in path was not in the expected format
         """
         self._path = path
+        self._batch_size = batch_size;
         self._pre_emphasis = pre_emphasis if pre_emphasis is not None else PRE_EMPHASIS
         self._frame_size = frame_size if frame_size is not None else FRAME_SIZE
         self._frame_stride = frame_stride if frame_stride is not None else FRAME_STRIDE
@@ -80,10 +82,11 @@ class AudioPrep(object):
             self._phon_dict = beep.get_phoneme_dict(path = dict_path)
             
         self._get_files()
-        self._batch_count = len(self._files)
+        self._author_count = len(self._files)
         
     def _get_files(self):
         """Prepares the folders' dict, so that we can return the audio in batches."""
+        self._audio_count = 0
         self._files = dict()
 
         # listdir returns a list of all the items in a folder.
@@ -92,9 +95,12 @@ class AudioPrep(object):
         for author in author_folders:  # First, we go through the authors folders
             self._files[author] = list()  # Inside the authors' dict, we have the chapters' dict
             author_path = os.path.join(self._path, author)
-            audio_folders = [d for d in listdir(author_path) if os.path.isdir(os.path.join(author_path, d))]
-            for audio in audio_folders:  # Then, inside the authors folder we have the chapters folder
-                self._files[author].append(audio)
+            chapter_folders = [d for d in listdir(author_path) if os.path.isdir(os.path.join(author_path, d))]
+            for chapter in chapter_folders:  # Then, inside the authors folder we have the chapters folder
+                self._files[author].append(chapter)
+                files_path = os.path.join(author_path, chapter)
+                audio_files = [file for file in listdir(files_path) if file.endswith(".flac")]
+                self._audio_count += len(audio_files)
 
         self._index = -1  # Start the authors' index before the first
         self._author_indexes = [key for key in self._files.keys()]  # Allows us to index the batches by number of the author
@@ -271,10 +277,8 @@ class AudioPrep(object):
         for key, transcript in phon_transcripts.items():
             if key in scaled_mfcc:
                 result[key] = (transcript, scaled_mfcc[key])
-            else:
-                print('LELE')
             
-        if self._index >= self._batch_count - 1:
+        if self._index >= self._author_count - 1:
             self._index = -1
 
         return result
@@ -289,7 +293,16 @@ class AudioPrep(object):
     def batch_generator(self, input_mask=2, output_mask=0):
         while True:
             X, y, input_lengths, label_lengths = self.get_batch(input_mask, output_mask)
-            yield ([X, y, input_lengths, label_lengths], y)
+            for i in range(0, X.shape[0]-self._batch_size, self._batch_size):
+                tmp_x = np.atleast_3d(X[i:i+self._batch_size])
+                tmp_y = np.atleast_2d(y[i:i+self._batch_size])
+                tmp_input_lengths = input_lengths[i:i+self._batch_size]
+                tmp_label_lengths = label_lengths[i:i+self._batch_size]
+                yield ([tmp_x, 
+                        tmp_y, 
+                        tmp_input_lengths, 
+                        tmp_label_lengths], 
+                        tmp_y)
 
     def convert_audios(self, origin_format = None, target_format = None):
         """Sets the formats to convert the audios from and to.
@@ -303,7 +316,9 @@ class AudioPrep(object):
 
     @property
     def batch_count(self):
-        return self._batch_count
+        return self._audio_count // self._batch_size
+
+    
 
 def translate_indexes(input, phonemes_path = None):
     if phonemes_path != None:
