@@ -1,5 +1,8 @@
 from os import listdir
+from pathlib import Path
 import os
+import random
+from collections import Generator
 from pydub import AudioSegment
 import soundfile as sf
 import numpy
@@ -24,7 +27,7 @@ AUDIO_TARGET_FORMAT = "wav"
 class AudioPrep(object):
     """Get audios, convert them into numpy arrays, do the MFCC transformation, translate the transcriptions into phonemes and make xy pairments."""
 
-    def __init__(self, path, batch_size=1, pre_emphasis = None, frame_size = None, frame_stride = None, NFFT = None, nfilt = None, num_ceps = None, cep_lifter = None, dict_path = None, phonemes_path = None):
+    def __init__(self, path, convert_files=True, pre_emphasis = None, frame_size = None, frame_stride = None, NFFT = None, nfilt = None, num_ceps = None, cep_lifter = None, dict_path = None, phonemes_path = None):
         """Class constructor
 
         Initializes MFCC parameters, reads the phoneme dictionary and get the list of files.
@@ -43,7 +46,7 @@ class AudioPrep(object):
                 |  |_84280 [Chapter]
                 |  |_168635 [Chapter]
 
-            batch_size: Defaults to 1. The size for each data batch.
+            convert_files: Defaults to True. Whether it should convert all files to the target format before starting.
             pre_emphasis: Defaults to 0.97. Defines the value of the amplification filter applied to the high frequencies of the audio.
             frame_size: Defaults to 0.025. Defines the window size in seconds.
             frame_stride: Defaults to 0.01. Defines the step between adjacent windows.
@@ -58,7 +61,6 @@ class AudioPrep(object):
             IndexError: The folder specified in path was not in the expected format
         """
         self._path = path
-        self._batch_size = batch_size;
         self._pre_emphasis = pre_emphasis if pre_emphasis is not None else PRE_EMPHASIS
         self._frame_size = frame_size if frame_size is not None else FRAME_SIZE
         self._frame_stride = frame_stride if frame_stride is not None else FRAME_STRIDE
@@ -66,7 +68,7 @@ class AudioPrep(object):
         self._nfilt = nfilt if nfilt is not None else NFILT 
         self._num_ceps = num_ceps if num_ceps is not None else NUM_CEPS
         self._cep_lifter = cep_lifter if cep_lifter is not None else CEP_LIFTER
-        self._origin_format = AUDIO_ORIGIN_FORMAT
+        self._origin_format = AUDIO_ORIGIN_FORMAT # TODO: swa this with constructor value
         self._target_format = AUDIO_TARGET_FORMAT
         self._dict_path = dict_path
         self._phonemes_path = phonemes_path
@@ -81,112 +83,99 @@ class AudioPrep(object):
         else:
             self._phon_dict = beep.get_phoneme_dict(path = dict_path)
             
-        self._get_files()
-        self._author_count = len(self._files)
+        self._get_files_dict()
+        if convert_files:
+            self._convert_files()
         
-    def _get_files(self):
-        """Prepares the folders' dict, so that we can return the audio in batches."""
-        self._audio_count = 0
+    def _get_files_dict(self):
+        """Prepares the _files dict which maps audio path to phoneme transcripts."""
         self._files = dict()
 
         # listdir returns a list of all the items in a folder.
         # So, we need to use os.path.isdir to check whether a certain item is a folder or not.
         author_folders = [d for d in listdir(self._path) if os.path.isdir(os.path.join(self._path, d))]
         for author in author_folders:  # First, we go through the authors folders
-            self._files[author] = list()  # Inside the authors' dict, we have the chapters' dict
             author_path = os.path.join(self._path, author)
             chapter_folders = [d for d in listdir(author_path) if os.path.isdir(os.path.join(author_path, d))]
             for chapter in chapter_folders:  # Then, inside the authors folder we have the chapters folder
-                self._files[author].append(chapter)
                 files_path = os.path.join(author_path, chapter)
-                audio_files = [file for file in listdir(files_path) if file.endswith(".flac")]
-                self._audio_count += len(audio_files)
+                all_files = [file for file in listdir(files_path)]
+                transcript_file = [file for in all_files if file.endswith(".txt")][0]
+    
+                # gets the transcripts
+                transcript_lines = [line.rstrip('\n') for line in open(transcript_file)]
+                for line in transcript_lines:
+                    split = line.find(' ')
+                    alias = line[:split]
+                    transcript = line[split:]
+                    phoneme_transcript = self._get_phoneme_transcript(transcript)
+                    if phoneme_transcript != None:
+                        path = os.path.join(files_path, alias + self._target_format)
+                        self._files[alias] = phoneme_transcript
 
-        self._index = -1  # Start the authors' index before the first
-        self._author_indexes = [key for key in self._files.keys()]  # Allows us to index the batches by number of the author
+        self._audio_count = len(self._files)
 
-    def _get_mfcc (self, audios):
-        """Do the Mel Scale transform on the audios.
+    def _get_mfcc (self, audio, samplerate):
+        """Do the Mel Scale transform on a single audio.
         
         Args:
-            audios: a dict provided by _get_data() that maps the keys to tuple (numpy_arrays audio, samplerate).
+            audio: a numpy array containing the audio data.
+            samplerate: the samplerate associated with the audio
 
         Returns:
-            A tuple containing a list of the keys and a list of the audios after the MFCC transform.
+            The MFCC scaled audio.
         """
-        keys = list()
-        mfccs = list()
+        return python_speech_features.mfcc(audio, samplerate)
 
-        for key, value in audios.items():
-            audio = value[0]
-            samplerate = value[1]
-            audio_mfcc = python_speech_features.mfcc(audio, samplerate)
-            keys.append(key)
-            mfccs.append(audio_mfcc)
-
-        return (keys, mfccs)
-
-    def _scale_data (self, keys, mfccs):
-        """Scale the MFCC coefficients into a range of (-1, 1), making it easier for the neural networks to interpret the data
+    def _scale_data (self, mfcc_audio):
+        """Scale the MFCC coefficients of an audio into a range of (-1, 1), making it easier for the neural networks to interpret the data
         
         Args:
-            keys: a list that provides the keys to be used in the dict.
-            mfccs: a list that provides the mfcc transformed audios, aligned to the keys list.
+            mfcc_audio: a single mfcc_audio in the format of a numpy array
 
         Returns:
-            A dict pairing the keys to the scaled audios.
+            The scaled audio.
         """
-        audios = list()
-        for mfcc in mfccs:
-            scaled_audio = minmax_scale(mfcc, feature_range=(-1,1), axis = 1)  # the axis parameter indicates that the audio will be scaled in each window, instead of each feature
-            audios.append(scaled_audio)
+        # the axis parameter indicates that the audio will be scaled in each window, instead of each feature
+        return minmax_scale(mfcc, feature_range=(-1,1), axis = 1)
 
-        scaled_mfcc = dict()
-        for i in range(len(keys)):
-            scaled_mfcc[keys[i]] = audios[i]
-        
-        return scaled_mfcc
+    def _convert_files(self):
+        """Converts all files listed as the _files dict's keys"""
+        for file in self._files.keys():
+            self._convert_file(path)
 
-    def _convert_audios(self, path):
-        """Convert all the audios in path from self._origin_format to self._target_format.
+    def _convert_file(self, path):
+        """Convert the the file to target format in path if not exists
 
         Args:
-            path: The path in which are the files to be converted
+            path: The audio file path to be converted
         """
-        if self._origin_format is None:
-            self._origin_format = AUDIO_ORIGIN_FORMAT
-        if self._target_format is None:
-            self._target_format = AUDIO_TARGET_FORMAT
-        audio_parts = [d for d in listdir(path) if d.endswith('.' + self._origin_format)]  # Get all the files that are in origin_format
-        for audio_part in audio_parts:           
-            audio = AudioSegment.from_file(os.path.join(path, audio_part), self._origin_format)  # Create a object that represents the audio file
-            audio.export(os.path.join(path, audio_part).split('.')[0] + '.' + self._target_format, format = self._target_format)  # Use the object to convert the audio
+        file = Path(path)
+        if !file.exists(): # only converts if it needs to be converted
+            # Create a object that represents the audio file
+            source_path = os.path.join(path, audio_part).split('.')[0] + '.' + self._source_format
+            audio = AudioSegment.from_file(source_path)
+            # Use the object to convert the audio 
+            audio.export(path, format = self._target_format)
 
-    def _get_phoneme_transcription(self, transcriptions):
-        """Convert the transcripts into its respective phonemes.
+    def _get_phoneme_transcript(self, transcript):
+        """Convert a single transcript into its respective phonemes.
         
         Args:
-            transcriptions: a dict containing the audio transcripts
+            transcript: a string containing an audio transcript
 
         Returns:
-            A dict containing the key of the audio and its respective phoneme representation. Unknown words are replaced by the silence symbol
+            A string with the transcript's respective phoneme representation. Unknown words are replaced by the silence symbol
+            Returns None if the transcript is not valid.
         """
-        phoneme_transcripts = dict()
-        
-        for key, transcript in transcriptions.items():
-            words = transcript.split()
-            phrase = []
-            valid = True # makes sure phrases with unknown words are not mapped
-            for word in words:
-                if word in self._phon_dict.keys():
-                    phrase += self._phon_dict[word]
-                else:
-                    valid = False
-                    break
+        phoneme_transcript = ''
+        for word in transcript.split():
+            if word in self._phon_dict.keys():
+                phoneme_transcript += self._phon_dict[word]
+            else:
+                return None
 
-            if valid:
-                phoneme_transcripts[key] = phrase[:-1]
-        return phoneme_transcripts
+        return phoneme_transcript
 
     def _get_input_tensor(self, batch, mask):
         """Returns a tuple of an 1D tensor containing the lengths of each sample in the batch and
@@ -234,8 +223,8 @@ class AudioPrep(object):
         return label_lengths, padded_labels
 
 
-    def _get_data(self, format = "wav"):
-        """Gets the audios, do the transforms, get the phonetic transcriptions and pair it all up
+    def _get_batch_data(self):
+        """Get the audios for a single batch, do the transforms, get the phonetic transcriptions and pair it all up
         
         Args:
             format: the format of the audio to be read.
@@ -243,61 +232,69 @@ class AudioPrep(object):
         Returns:
             A dict pairing the keys to tuples that contain (phonetic transcriptions, scaled mfcc converted audios)
         """
-        self._index += 1
-
-        author = self._author_indexes[self._index]
-        author_path = os.path.join(self._path, author)
-        transcripts = dict()
-        audios = dict()
-        for audio in self._files[author]:
-            curr_path = os.path.join(author_path, audio)            
-
-            # Gets the transcripts
-            transcript_file = [file for file in listdir(curr_path) if file.endswith('.txt')][0]
-            transcript_lines = [line.rstrip('\n') for line in open(os.path.join(curr_path, transcript_file))]
-            for line in transcript_lines:
-                split = line.find(' ')
-                transcripts[line[:split]] = line[split:]
-
-            # Gets the audios and convert them
-            audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + self._origin_format)]
-            if not audio_parts:
-                if self._target_format is None:
-                    self._target_format = format
-                self._convert_audios(curr_path)            
-                audio_parts = [d for d in listdir(curr_path) if d.endswith('.' + self._origin_format)]
-            for audio_part in audio_parts:                
-                data, samplerate = sf.read(os.path.join(curr_path, audio_part))
-                audios[audio_part.split('.')[0]] = (data, samplerate)
         
-        keys, mfcc = self._get_mfcc(audios)
-        scaled_mfcc = self._scale_data(keys, mfcc)
-        result = dict()
-        phon_transcripts = self._get_phoneme_transcription(transcripts)
-        for key, transcript in phon_transcripts.items():
-            if key in scaled_mfcc:
-                result[key] = (transcript, scaled_mfcc[key])
-            
-        if self._index >= self._author_count - 1:
-            self._index = -1
 
         return result
 
-    def get_batch(self, input_mask=2, output_mask=0): 
-        batch = self._get_data()
+    def get_batch(self, file_set=None, input_mask=2, output_mask=0):
+        """Gets a single batch from a set of file paths
+        
+        Args:
+            file_set: a set containing paths to the audios in batch
+            input_mask: the input mask for this batch
+            output_mask: the output mask for this batch
+
+        Returns:
+            A tuple equivalent to the input of a Keras CTC network read from the files in file_set
+        """
+        batch = self._get_batch_data(file_set)
         input_lengths, X = self._get_input_tensor(batch, input_mask)
         label_lengths, y = self._get_output_tensor(batch, output_mask)
 
         return X, y, input_lengths, label_lengths
 
-    def batch_generator(self, input_mask=2, output_mask=0):
+    class BatchGenerator(Generator):
+        """Batch generator class for using it in fit_generator"""
+        def __init__(self, audio_prep=None, randomize=False, batch_size=1, input_mask=2, output_mask=0):
+            if audio_prep == None or not isinstance(audio_prep, AudioPrep):
+                raise ValueError("No audioprep provided to generator")
+            self._audio_prep = audio_prep
+            self._file_queue = audio_prep._files.keys()
+            if randomize:
+                self._file_queue = random.shuffle(self._file_queue)
+            self._batch_size = batch_size
+            self._batch_count = self._audio_prep.batch_count(self._batch_size)
+            self._input_mask = input_mask
+            self._output_mask = output_mask
+            self._index = 0
+
+        def __len__(self):
+            return self._batch_count
+
+        def send(self, _):
+            if self._index >= self._batch_count:
+                raise StopIteration
+
+            file_set = set()
+            for _ in range(self._batch_size):
+                file_set.add(self._file_queue.pop())
+
+            self._index += 1
+                
+            return self._audio_prep.get_batch(file_set, self._input_mask, self._output_mask)
+
+        def throw(self, type=None, value=None, traceback=None)
+            raise StopIteration
+
+
+    def batch_generator(self, batch_size=1, input_mask=2, output_mask=0):
         while True:
             X, y, input_lengths, label_lengths = self.get_batch(input_mask, output_mask)
-            for i in range(0, X.shape[0]-self._batch_size, self._batch_size):
-                tmp_x = np.atleast_3d(X[i:i+self._batch_size])
-                tmp_y = np.atleast_2d(y[i:i+self._batch_size])
-                tmp_input_lengths = input_lengths[i:i+self._batch_size]
-                tmp_label_lengths = label_lengths[i:i+self._batch_size]
+            for i in range(0, X.shape[0]-batch_size, batch_size):
+                tmp_x = np.atleast_3d(X[i:i+batch_size])
+                tmp_y = np.atleast_2d(y[i:i+batch_size])
+                tmp_input_lengths = input_lengths[i:i+batch_size]
+                tmp_label_lengths = label_lengths[i:i+batch_size]
                 yield ([tmp_x, 
                         tmp_y, 
                         tmp_input_lengths, 
@@ -314,9 +311,8 @@ class AudioPrep(object):
         self._origin_format = origin_format if origin_format is not None else AUDIO_ORIGIN_FORMAT
         self._target_format = target_format if target_format is not None else AUDIO_TARGET_FORMAT
 
-    @property
-    def batch_count(self):
-        return self._audio_count // self._batch_size
+    def batch_count(self, batch_size):
+        return self._audio_count // batch_size
 
     
 
