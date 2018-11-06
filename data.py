@@ -223,7 +223,7 @@ class AudioPrep(object):
         return label_lengths, padded_labels
 
 
-    def _get_batch_data(self):
+    def _get_batch_data(self, file_set):
         """Get the audios for a single batch, do the transforms, get the phonetic transcriptions and pair it all up
         
         Args:
@@ -232,7 +232,14 @@ class AudioPrep(object):
         Returns:
             A dict pairing the keys to tuples that contain (phonetic transcriptions, scaled mfcc converted audios)
         """
-        
+        batch_data = dict()
+        for file in file_set:
+            audio, samplerate = sf.read(file)
+            mfcc = self._get_mfcc(audio)
+            scaled = self._scale_data(mfcc)
+
+            transcription = self._files[file]
+            batch_data[file] = (transcription, scaled)
 
         return result
 
