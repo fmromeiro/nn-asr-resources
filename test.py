@@ -7,23 +7,13 @@ from tensorflow.keras.layers import LSTM, Dense, Masking, TimeDistributed
 from tensorflow.keras.preprocessing import sequence
 
 def main():
-    UNITS = 50
-    MASKING_VALUE = 2
-    INPUT_FEATURES = 13
-    NUM_PHONEMES = 44
-
-    model = keras.models.Sequential()
-    model.add(Masking(MASKING_VALUE, input_shape=(None, INPUT_FEATURES)))
-    model.add(LSTM(UNITS, return_sequences=True))
-    model.add(TimeDistributed(Dense(NUM_PHONEMES + 1, activation='softmax')))
-    print(model.summary())
-    # model.compile(loss='binary_crossentropy', optimizer='adam')
-
-    # for test purposes, uses the same set for training and validation
-    trainer = train.Trainer(model,
-                            "C:\\Users\\u16187\\Desktop\\TCC\\OpenSLR\\dev-clean\\LibriSpeech\\dev-clean",
-                            "C:\\Users\\u16187\\Desktop\\TCC\\OpenSLR\\dev-clean\\LibriSpeech\\dev-clean")
-    trainer.train(10,optimizer='adam')
+    RAW_DATA_PATH = "C:\\Users\\u16187\\Desktop\\TCC\\OpenSLR\\dev-clean\\LibriSpeech\\dev-clean"
+    CACHE_PATH = "C:\\Temp\\cache_test_2\\"
+    data.AudioPrep.generate_cache(RAW_DATA_PATH, CACHE_PATH)
+    prep = data.AudioPrep(CACHE_PATH)
+    for batch in prep.batch_generator():
+        print(batch.shape)
+    
 
 if __name__ == "__main__":
     main()
