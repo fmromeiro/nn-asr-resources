@@ -23,18 +23,20 @@ class Trainer:
     """The default optimizer used in training"""
     DEFAULT_OPTIMIZER = keras.optimizers.SGD()
 
-    def __init__(self, model, training_data_path, validation_data_path, masking_value = 2):
+    def __init__(self, model, batch_size, training_data_path, validation_data_path, masking_value = 2):
         """Class constructor
 
         Initializes class attributes.
 
         Args:
             model: the Keras model which will be trained by this instance
+            batch_size: the size of each batch used during training
             training_data_path: the path to the training audio and transcription data
             validation_data_path: the path to the validation audio and transcription data
             masking_value: the value used by the model's mask layer for padded sequences
         """
         self._model = model
+        self._batch_size = batch_size
         self._training_path = training_data_path
         self._validation_path = validation_data_path
         self._mask = masking_value
@@ -61,7 +63,7 @@ class Trainer:
 
         self._built = True
 
-    def train(self, epochs, callbacks=None, optimizer=DEFAULT_OPTIMIZER):
+    def train(self, epochs, randomize=False, callbacks=None, optimizer=DEFAULT_OPTIMIZER):
         """Trains the model.
 
         Args:
@@ -75,10 +77,20 @@ class Trainer:
         train_set = AudioPrep(self._training_path)
         validation_set = AudioPrep(self._validation_path)
 
-        self._wrapper_model.fit_generator(generator=train_set.batch_generator(self._mask, 0),
-                                          steps_per_epoch=train_set.batch_count,
-                                          validation_data=validation_set.batch_generator(),
-                                          validation_steps=validation_set.batch_count,
+        self._wrapper_model.fit_generator(generator=train_set.batch_generator(
+                                                self._batch_size, 
+                                                randomize, 
+                                                self._mask, 
+                                                0
+                                            ),
+                                          steps_per_epoch=train_set.batch_count(self._batch_size),
+                                          validation_data=validation_set.batch_generator(
+                                                self._batch_size,
+                                                True,
+                                                self._mask,
+                                                0
+                                            ),
+                                          validation_steps=validation_set.batch_count(self._batch_size),
                                           epochs=epochs,
                                           shuffle=False,
                                           callbacks=callbacks)
