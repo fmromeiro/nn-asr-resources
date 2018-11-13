@@ -50,8 +50,8 @@ class Trainer:
 
         # CTC wrapper data
         labels = Input(name='labels', shape=(None,), dtype='int32')
-        label_length = Input(name='label_length', shape=(None,), dtype='int32')
-        input_length = Input(name='input_length', shape=(None,), dtype='int32')
+        label_length = Input(name='label_length', shape=(self._batch_size,), dtype='int32')
+        input_length = Input(name='input_length', shape=(self._batch_size,), dtype='int32')
 
         loss_layer = Lambda(_ctc_loss, output_shape=(1,), name='ctc')([labels, 
                                                                        y_pred, 

@@ -308,7 +308,7 @@ class AudioPrep(object):
         input_lengths, X = self._get_input_tensor(batch, input_mask)
         label_lengths, y = self._get_output_tensor(batch, output_mask)
 
-        return X, y, input_lengths, label_lengths
+        return ([X, y, input_lengths, label_lengths], y)
 
     class BatchGenerator(Generator):
         """Batch generator class for using it in fit_generator"""
